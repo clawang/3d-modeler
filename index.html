@@ -1,0 +1,1110 @@
+<script src=lib8.js></script>
+
+<style>
+    @font-face {
+        font-family: Otamendi;
+        src: url(Otamendi.ttf);
+    }
+    
+    body {
+        font-family: 'Courier New', sans-serif;
+        overflow: hidden;
+    }
+    
+    #overlay {
+/*        display:none;*/
+    }
+    
+    #overlay-inner {
+        width: 500px;
+        margin: 0 auto;
+    }
+    
+    form {
+        width: 200px;
+        margin: 0 auto;
+        display: flex;
+    }
+    
+    form > div {
+        width: 50%;
+        padding: 5px;
+        text-align: left;
+    }
+    
+    label {
+        text-transform: uppercase;
+        font-size: 10px;
+    }
+    
+    input {
+        font-family: 'Courier New', sans-serif;
+    }
+    
+    input[type=text] {
+        width: 100%;
+        padding: 10px;
+    }
+    
+    select {
+        width: 100%;
+        padding: 5px;
+    }
+    
+    input[type=submit] {
+        width: 200px;
+        margin: 10px auto;
+        padding: 10px;
+        background: #fffcd1;
+        border: none;
+        cursor:pointer;
+        font-family: 'Courier New', sans-serif;
+        transition: 0.2s;
+    }
+    
+    input[type=range] {
+        margin-bottom: 10px;
+    }
+    
+    button {
+        font-family: 'Courier New', sans-serif;
+        padding: 5px 10px;
+        background: black;
+        border:none;
+        cursor: pointer;
+        color: white;
+        transition: 0.2s;
+    }
+    
+    input[type=submit]:hover, button:hover {
+        background: white;
+        color: black;
+    }
+    
+    #canvas1 {
+        margin-left: 50px;
+/*        border: 1px solid white;*/
+    }
+    
+    #controls {
+        left: 0;
+        padding: 25px;
+        bottom: 0;
+        width: 200px;
+        background: white;
+        z-index: 2;
+        color: black;
+        height: 100%;
+        text-align: center;
+    }
+    
+    #container {
+        display:flex;
+        width: 100%;
+        height: 100%;
+    }
+    
+    h1 {
+        font-family: Otamendi;
+        font-size: 3em;
+        margin-top: 0;
+    }
+    
+    h2 {
+        text-transform: uppercase;
+        font-size: 1em;
+        margin: 5px;
+    }
+    
+    h3 {
+        text-transform: uppercase;
+        font-size: 12px;
+        margin-top: 0;
+    }
+    
+    .controls-section {
+        background-color: #eee;
+        padding: 15px;
+        margin: 15px;
+    }
+    
+    .controls-section input[type=number] {
+        width: 50px;
+    }
+</style>
+
+<body bgcolor=black text=white link=white alink=white vlink=white>
+    
+<div id="container">
+
+    <div id="controls">
+        <h2>Welcome</h2>
+        <h1 id="welcome">sign</h1>
+        <label>Rotate Scene</label>
+        <input type=range min=1 max=100 value=50 class=slider id=rotateSlider>
+        <div class="controls-section">
+            <h3>Create Object</h3>
+            <input type="radio" name="shape" value="cube" checked> <label>Cube</label><br/>
+            <input type="radio" name="shape" value="sphere" > <label>Sphere</label><br/>
+            <input type="radio" name="shape" value="cone" > <label>Cone</label><br/>
+            <input type="radio" name="shape" value="birthstone" > <label>Birthstone</label><br/>
+        </div>
+        <div class="controls-section">
+            <h3>Color</h3>
+            <label>R</label> <input type="number" id="red" name="color" min='1' max='255' defaultValue=100> <br/>
+            <label>G</label> <input type="number" name="color" id="green" min='1' max='255' defaultValue=100> <br/>
+            <label>B</label> <input type="number" id="blue"  name="color" min='1' max='255' defaultValue=100> <br/>
+        </div>
+        <div class="controls-section">
+            <h3>Object Controls</h3>
+            <label>X Rotation</label> <br/><input type=range min=1 max=100 value=50 class=slider id=rotX>
+            <br>
+            <label>Y Rotation</label> <br/> <input type=range min=1 max=100 value=50 class=slider id=rotY>
+            <br>
+            <label>Z Rotation</label> <br/> <input type=range min=1 max=100 value=50 class=slider id=rotZ>
+            <br>
+            <label>Size</label> <br/> <input type=range min=1 max=100 value=50 class=slider id=scale>
+            <button id="deleteBtn">Delete Object</button>
+        </div>
+
+    </div>
+    <canvas id='canvas1' width=400 height=400></canvas>
+
+</div>
+</body>
+
+<!!-------- VERTEX SHADER: YOU PROBABLY DON'T WANT TO CHANGE THIS RIGHT NOW -------->
+
+<script id='my_vertex_shader' type='x-shader/x-vertex'>
+   attribute vec3 aPos;
+   attribute vec3 aNor;
+   attribute vec2 aUV;
+   uniform   mat4 uPMat;
+   uniform   mat4 uMatF;
+   uniform   mat4 uMatI;
+   varying   vec3 vaPos;
+   varying   vec3 vPos;
+   varying   vec3 vNor;
+   varying   vec2 vUV;
+   void main() {
+      vec4 pos = uPMat * uMatF * vec4(aPos, 1.);
+      vec4 nor = vec4(aNor, 0.) * uMatI;
+      gl_Position = pos * vec4(1.,1.,1./10.,1.);
+      vaPos = aPos;
+      vPos = pos.xyz;
+      vNor = nor.xyz;
+      vUV  = aUV;
+   }
+</script>
+
+<!!-------- FRAGMENT SHADER: THIS IS WHERE YOU WILL DO YOUR WORK -------->
+
+<script id='my_fragment_shader' type='x-shader/x-fragment'>
+
+ const int nl = 3;            // NUMBER OF LIGHTS
+ uniform vec3  uLDir[nl];     // LIGHT DIRECTIONS
+ uniform vec3  uLCol[nl];     // LIGHT COLORS
+ uniform mat4  uM;            // MATERIAL PROPERTIES
+ uniform float uTime;         // TIME (CURRENTLY UNUSED)
+ varying vec3  vPos;
+ varying vec3  vaPos;
+ varying vec3  vNor;
+ varying vec2  vUV;
+
+ void main() {
+    vec3 P = vPos;            // SURFACE POINT
+    vec3 N = normalize(vNor); // SURFACE NORMAL
+    vec3 E = vec3(0.,0.,1.);  // APPROX DIRECTION TO EYE
+
+    // UNPACK MATERIAL PROPERTIES MATRIX
+
+    mat4 material = uM;
+    vec3 ambient  = material[0].rgb;
+    vec3 diffuse  = material[1].rgb;
+    vec3 specular = material[2].rgb;
+    float p       = material[2].a;
+    float ta      = material[3].r;
+    float tf      = material[3].g;
+
+    // DO PHONG SHADING
+
+    vec3 color = ambient;
+    for (int i = 0 ; i < nl ; i++) {
+       vec3 R = 2. * dot(uLDir[i], N) * N - uLDir[i];
+       float d = max(0., dot(uLDir[i], N));
+       float s = pow(max(0., dot(E, R)), p);
+       color += uLCol[i] * (diffuse * d + specular * s);
+    }
+    color += specular * .02 * (.1 + noise(2. * N)) * N.z;
+    if (ta != 0.)
+       color *= 1. + ta * noise(vec3(tf * vUV, 0.));
+    gl_FragColor = vec4(sqrt(color), 1.0);
+ }</script>
+
+<!!-------- A PROPERLY DESCRIPTIVE TITLE -------->
+
+<script id='my_title' type='text/html'>
+Interactive Modeler
+</script>
+
+<!!-------- A LONGER TEXT DESCRIPTION -------->
+
+<script id='my_instructions' type='text/html'><font color=#b0b0b0>
+I added features to scale, rotate, and delete objects, as well as a ground to lay a foundation for building projects.
+</script>
+
+<script id='myForm' type='text/html'>
+    <div id='overlay' style="width: 100%; height: 100%;background: black;z-index: 5;text-align: center;padding-top: 20%;">
+        <div id='overlay-inner'>
+            <h1>What's your date of birth?</h1>
+            <form>
+                <input type="text" id="birthday" placeholder="MM/DD">
+            </form>
+            <input type="submit" id="submitBtn">
+            <p id="error-message" style="color:red;"></p>
+        </div>
+    </div>
+</script>
+
+<script>
+
+// CREATE THE HTML DOCUMENT
+
+let vs = my_vertex_shader.innerHTML,
+    fs = my_fragment_shader.innerHTML;
+    fs = fs.substring(1, fs.length);
+
+document.body.innerHTML = [''
+//   ,'<center><font size=6 color=#b0b0b0>' + my_title.innerHTML + '</center>'
+   ,myForm.innerHTML
+//   ,'<TABLE cellspacing=0 cellpadding=0><TR>'
+//   ,'<td width=50></td><td><font color=red size=5><div id=errorMessage>&nbsp;</div></font></td>'
+//   ,'</TR><TR>'
+//   ,'<table cellspacing=10>'
+//   ,'<tr>'
+//   ,'<td valign=top><font size=2 color=red><div id=errorMarker>&nbsp;</div></font></td>'
+//   ,'<td valign=top>'
+//   ,'<textArea id=textArea spellcheck=false '
+//   ,'style="font:16px courier;outline-width:0;border-style:none;resize:none;overflow:scroll;"'
+//   ,'></textArea>'
+   ,document.body.innerHTML
+//   ,'<td valign=top><font size=5>' + my_instructions.innerHTML + '</td>'
+//   ,'</tr></table>'
+//   ,'</TR></TABLE>'
+   ].join('');
+
+// SET UP THE EDITABLE TEXT AREA ON THE LEFT SIDE.
+
+let text = fs.split('\n'), cols = 0;
+for (let i = 0 ; i < text.length ; i++)
+   cols = Math.max(cols, text[i].length);
+
+//textArea.rows = text.length;
+//textArea.cols = cols;
+//textArea.value = fs;
+//textArea.style.backgroundColor = '#202020';
+//textArea.style.color = 'white';
+    overlay.style.position = "absolute";
+//    overlay.width = window.innerWidth;
+//    overlay.height = window.innerHeight;
+    overlay.backgroundColor = "black";
+//    canvas1.style.position = "absolute";
+   canvas1.width = window.innerHeight;
+   canvas1.height = window.innerHeight;
+//   canvas1.style.top = '0px';
+//   canvas1.style.zIndex = "2";
+//   canvas1.style.left = "25%";
+//   canvas1.style.translate = "(-50%, -50%)";
+
+// REPARSE THE SHADER PROGRAM AFTER EVERY KEYSTROKE.
+
+//textArea.onkeyup = function() { canvas1.setShaders(vs, this.value); }
+
+// USEFUL ANIMATION VARIABLES.
+    
+    let date;
+    let birthday;
+    let sign = '';
+    let birthdayArr =[];
+    
+    const submitBtn = document.getElementById('submitBtn');
+    const fadeTarget = document.getElementById('overlay');
+    submitBtn.onclick = function(e) {
+        e.preventDefault();
+//        let select = document.getElementById("month");
+//        month = select.options[select.selectedIndex].text;
+        date = document.getElementById('birthday').value;
+        if(date !== '' && date.indexOf('/') === 2 && date.length === 5) {
+            birthdayArr = date.split('/');
+            birthdayArr = birthdayArr.map(ele =>Number(ele));
+            if(birthdayArr[0] < 1 || birthdayArr[0] > 12 || birthdayArr[1] < 1 || birthdayArr[1] > 31) {
+                document.getElementById('error-message').textContent = "Please enter a real date.";
+            } else {
+                birthday = new Date(2020, Number(birthdayArr[0]), Number(birthdayArr[1]));
+                var fadeEffect = setInterval(function () {
+                    if (!fadeTarget.style.opacity) {
+                        fadeTarget.style.opacity = 1;
+                    }
+                    if (fadeTarget.style.opacity > 0) {
+                        fadeTarget.style.opacity -= 0.05;
+                    } else {
+                        clearInterval(fadeEffect);
+                    }
+                }, 1);
+                setInterval(function() {
+                    fadeTarget.style.display ="none";
+                }, 200);
+                drawConstellation();
+            }
+        } else if(date === '') {
+            document.getElementById('error-message').textContent = "Please enter a date.";
+        } else {
+            document.getElementById('error-message').textContent = "Please use the correct format (MM/DD)";
+        }
+    }
+    
+
+let startTime = Date.now(), prevTime = startTime, rate = 1, theta = 0, rotX = 0, rotY = 0, rotZ = 0, adjScale = 1, shape = 'cube', color = 'pink', r = 100, g = 100, b = 100;
+
+// THIS METHOD GETS CALLED WHENEVER USER ADJUSTS THE SLIDER.
+    
+    rotXSlider = document.getElementById('rotX');
+    rotYSlider = document.getElementById('rotY');
+    rotZSlider = document.getElementById('rotZ');
+    scaleSlider = document.getElementById('scale');
+    deleteBtn = document.getElementById('deleteBtn');
+
+    let shapeSelect = document.getElementsByName('shape');
+
+for (let i=0; i<shapeSelect.length; i++) {
+    shapeSelect[i].onclick = function() { 
+        shape = this.value;
+    };
+}
+    let colorSelect = document.getElementsByName('color');
+    for (let i=0; i<colorSelect.length; i++) {
+    colorSelect[i].oninput = function() { 
+        r = document.getElementById('red').value;
+        g = document.getElementById('green').value;
+        b = document.getElementById('blue').value;
+    };
+}
+    
+rotateSlider.oninput = function() {
+   theta = Math.PI * (.5 - this.value / 50);
+}
+
+rotXSlider.oninput = function() {
+    
+    rotX = Math.PI * (.5 - this.value / 50);
+}
+
+rotYSlider.oninput = function() {
+    
+    rotY = Math.PI * (.5 - this.value / 50);
+}
+
+rotZSlider.oninput = function() {
+    
+    rotZ = Math.PI * (.5 - this.value / 50);
+}
+
+scaleSlider.oninput = function() {
+    adjScale = (this.value / 50);
+}
+
+deleteBtn.onclick = function() {
+    scene.remove(chosenObject);
+    chosenObject = null;
+}
+
+
+let blue_plastic          = phong([0,.05,.1], [0,.25,.5], [1,1,1], 20);
+let brass                 = phong([.02,.012,0], [.02,.012,0], [1,.6,0], 10);
+let gold                  = phong([.1,.03,0], [.12,.05,0], [1,.5,0], 10);
+let green_plastic         = phong([0,.1,0], [0,.5,0], [1,1,1], 20);
+let red_mottled_plastic   = phong([.1,0,0], [.5,0,0], [1,1,1], 20, 1, 20);
+let red_plastic           = phong([.1,0,0], [.5,0,0], [1,1,1], 20);
+let steel                 = phong([.02,.02,.02], [.02,.02,.02], [1,1,1], 10);
+let white_gold            = phong([.01,.01,.008], [0,0,0], [2,2,1.6], 40);
+let white_mottled_plastic = phong([.1,.1,.1], [.5,.5,.5], [1,1,1], 20, 1, 20);
+let white_plastic         = phong([.1,.1,.1], [.5,.5,.5], [1,1,1], 20);
+//let pink = phong([.02,.02,.02], [2,.5,.9], [1,1,1], 10);
+//let teal = phong([.02,.02,.02], [.5,1.2,1.2], [1,1,1], 10);
+//let purple = phong([.02,.02,.02], [1.2,.5,2], [1,1,1], 10);
+let white = phong([1,1,1], [1,1,1], [1,1,1], 20);
+let yellow = phong([1,1,0.5], [.12,.05,0], [1,1,1], 20);
+let colorChoices = {
+    pink: phong([.02,.02,.02], [2,.5,.9], [1,1,1], 10),
+    purple: phong([.02,.02,.02], [1.2,.5,2], [1,1,1], 10),
+    teal: phong([.02,.02,.02], [.5,1.2,1.2], [1,1,1], 10)
+};
+let crystalColors = [];
+    crystalColors[1] = phong([.1,0,0.01], [.05,0.05,0.05], [1,1,1], 10);
+    crystalColors[2] = phong([.1,0,0.12], [.05,0.05,0.05], [1,1,1], 10);
+    crystalColors[3] = phong([0,.1,0.15], [0,0.1,0.1], [1,1,1], 10);
+crystalColors[4] = phong([.5,.6,.6], [.5,.5,.5], [1,1,1], 10);
+crystalColors[5] = phong([0,.1,.05], [.12,.05,0], [1,1,1], 10);
+crystalColors[6] = phong([.6,.5,.6], [.5,.5,.5], [1,1,1], 10);
+crystalColors[7] = phong([.2,0,.03], [.05,0.02,0.02], [1,1,1], 10);
+    crystalColors[8] = phong([.1,.2,0], [.3,.3,0], [1,1,1], 10);
+    crystalColors[9] = phong([0,0,.2], [.3,.3,.6], [1,1,1], 10);
+    crystalColors[10] = phong([.2,0,.05], [0,.2,0], [1,1,1], 10);
+    crystalColors[11] = phong([.3,.1,.01], [.2,.2,0], [1,1,1], 10);
+    crystalColors[12] = phong([0,0,.2], [.2,0,0.05], [1,1,1], 10);
+
+// DEFINE ANIMATION CALLBACK, WHICH WILL GET CALLED AT EVERY FRAME.
+
+let time = 0;
+let viewMatrix = new Matrix();
+let inverseViewMatrix = new Matrix();
+    
+let chosenObject = null;
+
+function animate() {
+
+   // VARY THE ROTATION RATE DEPENDING ON THE SLIDER VALUE.
+
+//   time = (Date.now() - startTime) / 1000;
+    time += 0.1;
+   let cosine = 0.05 * (Math.sin(time) + 1) + 0.01;
+
+   // SET TIME IN THE GPU.
+
+   setUniform('1f', 'uTime', time);
+
+   // SET LIGHTS IN THE GPU.
+
+   setUniform('3fv', 'uLDir', [ .57,.57,.57, -.57,-.57,-.57, -.8,-.6,0 ]);
+   setUniform('3fv', 'uLCol', [ 1,1,1,        .25,.2,.15,     .2,.18,.16 ]);
+
+   // DRAW EVERYTHING.
+
+   viewMatrix.identity().rotateY(theta);
+
+   inverseViewMatrix.setValue(viewMatrix.getValue());
+   inverseViewMatrix.invert();
+
+   scene.identity().multiply(viewMatrix);
+    
+    if(chosenObject) {
+        chosenObject.identity().translate(chosenObject.position).scale(chosenObject.size * adjScale).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
+        chosenObject.rotX = rotX;
+        chosenObject.rotY = rotY;
+        chosenObject.rotZ = rotZ;
+    }
+
+   if (! isPressed)
+      selectedObject = null;
+    
+    background.children.forEach((star) => {
+        let size = 0.03 * (Math.sin(time*star.offset) + 1) + 0.01;
+        star.identity().translate(star.coordinates[0], star.coordinates[1], star.coordinates[2]).scale(size, size, size);
+    });
+
+//   for (let i = 0 ; i < colorSwatch.length ; i++)
+//      colorSwatch[i].identity()
+//                    .translate(-.9, .15 * (i-1), 0)
+//                    .scale(i == selectedColor ? .07 : .05);
+   root.draw();
+}
+
+
+let root = new Object();
+let scene = root.add();
+let gems = root.add();
+let constellation = root.add();
+let background = root.add();
+    
+    
+    //draw background stars
+    let zIndex = -20;
+    
+    for(let i = 0; i < 30; i++) {
+        let x = Math.random() * (7 + 6) - 6;
+        let y = Math.random() * (7 + 6) - 6;
+        let star = background.add(sphere, white);
+        let arr = [x,y,zIndex];
+        let offset = Math.random();
+        star.coordinates = arr;
+        star.offset = offset;
+    }
+    
+    
+    window.addEventListener('load', drawConstellation);
+    
+function drawConstellation() {
+    
+    if(birthday >= new Date(2020, 03, 21) && birthday <= new Date(2020, 04, 19)) {
+        sign = 'Aries';
+    } else if(birthday >= new Date(2020, 04, 20) && birthday <= new Date(2020, 05, 20)) {
+        sign = 'Taurus';
+    } else if(birthday >= new Date(2020, 05, 21) && birthday <= new Date(2020, 06, 21)) {
+        sign = 'Gemini';
+    } else if(birthday >= new Date(2020, 06, 22) && birthday <= new Date(2020, 07, 22)) {
+        sign = 'Cancer';
+    } else if(birthday >= new Date(2020, 07, 23) && birthday <= new Date(2020, 08, 22)) {
+        sign = 'Leo';
+    } else if(birthday >= new Date(2020, 08, 23) && birthday <= new Date(2020, 09, 22)) {
+        sign = 'Virgo';
+    } else if(birthday >= new Date(2020, 09, 23) && birthday <= new Date(2020, 10, 22)) {
+        sign = 'Libra';
+    } else if(birthday >= new Date(2020, 10, 23) && birthday <= new Date(2020, 11, 22)) {
+        sign = 'Scorpio';
+    } else if(birthday >= new Date(2020, 11, 22) && birthday <= new Date(2020, 12, 21)) {
+        sign = 'Sagittarius';
+    } else if(birthday >= new Date(2020, 12, 22) || birthday <= new Date(2020, 01, 19)) {
+        sign = 'Capricorn';
+    } else if(birthday >= new Date(2020, 01, 20) && birthday <= new Date(2020, 02, 18)) {
+        sign = 'Aquarius';
+    } else if(birthday >= new Date(2020, 02, 19) && birthday <= new Date(2020, 03, 20)) {
+        sign = 'Pisces';
+    }
+    
+    document.getElementById('welcome').textContent = sign;
+        
+    console.log(sign);
+    let paths = [];
+    
+    //constellations
+    if(sign === 'Aries') {
+        constellation.add(sphere, yellow).translate(-2.5, 3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1, 2.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2, 1.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2, 1,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [-2.5, 3, -10],
+            [1, 2.5, -10],
+            [2, 1.5, -10],
+            [2, 1, -10],
+        ]);
+    } else if(sign === 'Taurus') {
+        constellation.add(sphere, yellow).translate(-2.5, 3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1, 2.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.3, 1.7,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0, 1.4,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.1, 1.1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1, 0.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2, 0.9,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2.2, 0.6,-10).scale(0.05,0.05,0.05);
+        
+        constellation.add(sphere, yellow).translate(-3.3, 1.6,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.6, 1.1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.2, 1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.1, 1.1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1, 0.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.4, 0.1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.7, -0.2,-10).scale(0.05,0.05,0.05);
+        constellation.translate(0.2,0.6,0);
+        
+        paths.push([
+            [-2.5, 3, -10],
+            [-1, 2.3, -10],
+            [-0.3, 1.7, -10],
+            [0, 1.4, -10],
+            [0.1, 1.1, -10],
+            [1, 0.8, -10],
+            [2, 0.9, -10],
+            [2.2, 0.6, -10],
+        ]);
+        
+        paths.push([
+            [-3.3, 1.6, -10],
+            [-0.6, 1.1, -10],
+            [-0.2, 1, -10],
+            [0.1, 1.1, -10],
+            [1, 0.8, -10],
+            [0.4, 0.1, -10],
+            [0.7, -0.2, -10],
+        ]);
+    } else if(sign === 'Gemini') {
+        constellation.add(sphere, yellow).translate(-2.5, 2.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.4, 2.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.5, 1.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.5, 1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.9, 1.1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2.5, 1.4,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [-2.5, 2.5, -10],
+            [-1.4, 2.3, -10],
+            [0.5, 1.3, -10],
+            [1.5, 1, -10],
+            [1.9, 1.1, -10],
+            [2.5, 1.4, -10],
+        ]);
+        
+        //leg of first person
+        constellation.add(sphere, yellow).translate(0.5, 1.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.3, 0.6,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [0.5,1.3,-10],
+            [1.3,0.6,-10],
+        ]);
+        
+        //second person
+        constellation.add(sphere, yellow).translate(-2.8, 1.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-2.3, 1.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1, 0.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0, 0.6,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.5, -0.2,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [-2.8, 1.8, -10],
+            [-2.3, 1.5, -10],
+            [-1, 0.8, -10],
+            [0, 0.6, -10],
+            [1.5, -0.2, -10],
+        ]);
+        
+        //second person leg
+        constellation.add(sphere, yellow).translate(-1, 0.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.6, -0.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1, -0.8,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [-1,0.8,-10],
+            [-0.6,-0.3,-10],
+            [1,-0.8,-10],
+        ]);
+        
+        //arms
+        constellation.add(sphere, yellow).translate(-2.6, 1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-2.3, 1.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.8, 1.7,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.4, 2.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.9, 3,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [-2.6,1,-10],
+            [-2.3,1.5,-10],
+            [-1.8,1.7,-10],
+            [-1.4,2.3,-10],
+            [-0.9,3,-10],
+        ]);
+        
+        constellation.translate(0, 0.8, 0);
+    } else if(sign === 'Cancer') {
+        constellation.add(sphere, yellow).translate(-2.5, 3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1, 2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.5, 1.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2.3, 0.6,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [-2.5,3,-10],
+            [-1,2,-10],
+            [-0.5,1.5,-10],
+            [2.3,0.6,-10],
+        ]);
+        
+        constellation.add(sphere, yellow).translate(-0.5, 1.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.5, .3,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [-0.5,1.5,-10],
+            [-0.5,.3,-10],
+        ]);
+    } else if(sign === 'Leo') {
+        constellation.add(sphere, yellow).translate(1, 3.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(.5, 3.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(.3, 2.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(.7, 2.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.1, 2.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.6, 1.9,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.1, 0.7,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.8, 0.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.7, 1,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [1,3.3,-10],
+            [.5,3.2,-10],
+            [.3,2.5,-10],
+            [.7,2.2,-10],
+            [1.1,2.3,-10],
+            [1.6,1.9,-10],
+            [-0.1,0.7,-10],
+            [-0.8,0.2,-10],
+            [-0.7,1,-10],
+            [.7,2.2,-10],
+        ]);
+    } else if(sign === 'Virgo') {
+        constellation.add(sphere, yellow).translate(1.5, 3.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.2, 2.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.8, 2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.1, 2.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.7, 1.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.3, 1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-2.3, 0.4,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [1.5,3.3,-10],
+            [1.2,2.3,-10],
+            [0.8,2,-10],
+            [0.1,2.2,-10],
+            [-0.7,1.2,-10],
+            [-1.3,1,-10],
+            [-2.3,0.4,-10],
+        ]);
+        
+        constellation.add(sphere, yellow).translate(-0.5, 2.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.5, 0.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.5, -0.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.9, 0,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.4, -0.3,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [-0.5,2.8,-10],
+            [0.1,2.2,-10],
+            [0.8,2,-10],
+            [0.5,0.3,-10],
+            [-0.5,-0.2,-10],
+            [-0.9,0,-10],
+            [-1.4,-0.3,-10],
+        ]);
+        
+        paths.push([
+            [-0.7,1.2,-10],
+            [0.5,0.3,-10],
+        ]);
+    } else if(sign === 'Libra') {
+        constellation.add(sphere, yellow).translate(0.2, 3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.2, 3.7,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-2, 2.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-2.8, 2,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [0.2,3,-10],
+            [-1.2,3.7,-10],
+            [-2,2.3,-10],
+            [-2.8,2,-10],
+        ]);
+        
+//        constellation.add(sphere, yellow).translate(0.2, 3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0, 1.4,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1, 0.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.9, 0.3,-10).scale(0.05,0.05,0.05);
+        
+        paths.push([
+            [0.2,3,-10],
+            [0,1.4,-10],
+            [-1,0.8,-10],
+            [-0.9,0.3,-10],
+        ]);
+        
+        paths.push([
+            [0,1.4,-10],
+            [-1.2,3.7,-10],
+        ]);
+        
+        constellation.translate(1,0,0);
+    } else if(sign === 'Scorpio') {
+        constellation.add(sphere, yellow).translate(-1.2, 1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.5, 0.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1, 0.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-.4, 0.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.2, 0.4,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.3, 1.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1, 2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2, 2.7,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.8, 3.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.9, 2,-10).scale(0.05,0.05,0.05);
+        paths.push([
+            [-1.2,1,-10],
+            [-1.5,0.5,-10],
+            [-1,0.2,-10],
+            [-.4,0.2,-10],
+            [0.2,0.4,-10],
+            [0.3,1.2,-10],
+            [1,2,-10],
+            [2,2.7,-10],
+        ]);
+        paths.push([
+            [1.8,3.3,-10],
+            [2,2.7,-10],
+            [1.9,2,-10],
+        ]);
+    } else if(sign === 'Sagittarius') {
+        constellation.add(sphere, yellow).translate(-0.3, 0,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1, 0.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.4, 1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.8, 2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1, 2.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0, 2.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.5, 2.6,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.9, 2.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.7, 2.9,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2, 2.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.8, 1.7,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2, 1.4,-10).scale(0.05,0.05,0.05);
+        paths.push([
+            [-0.3,0,-10],
+            [-1,0.3,-10],
+            [-1.4,1,-10],
+            [-1.8,2,-10],
+            [-1,2.5,-10],
+            [0,2.2,-10],
+            [0.5,2.6,-10],
+            [0.9,2.5,-10],
+            [1.7,2.9,-10],
+            [2,2.3,-10],
+            [1.8,1.7,-10],
+            [2,1.4,-10],
+        ]);
+        constellation.add(sphere, yellow).translate(-1, 3.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.9, 3.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.3, 3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.4, 1.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2.2, 3.5,-10).scale(0.05,0.05,0.05);
+        paths.push([
+            [-1,3.5,-10],
+            [-0.9,3.3,-10],
+            [-0.3,3,-10],
+            [0,2.2,-10],
+            [0.4,1.8,-10],
+            [0.9,2.5,-10],
+            [1.7,2.9,-10],
+            [2.2,3.5,-10],
+        ]);
+        constellation.add(sphere, yellow).translate(2.5, 2.3,-10).scale(0.05,0.05,0.05);
+        paths.push([
+            [2,2.3,-10],
+            [2.5,2.3,-10],
+        ]);
+        constellation.add(sphere, yellow).translate(-0.3, 0.5,-10).scale(0.05,0.05,0.05);
+        paths.push([
+            [-1,0.3,-10],
+            [-0.3,0.5,-10],
+        ]);
+    } else if(sign === 'Capricorn') {
+        constellation.add(sphere, yellow).translate(-1, 0.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.7, 0.9,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0, 1.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.3, 1.6,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.3, 3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.7, 1.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.6, 0.9,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.3, 0.9,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.5, 0.4,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.5, 0.6,-10).scale(0.05,0.05,0.05);
+         paths.push([
+            [-1,0.5,-10],
+            [-0.7,0.9,-10],
+             [0,1.3,-10],
+             [0.3,1.6,-10],
+             [1.3,3,-10],
+             [1.7,1.2,-10],
+             [1.6,0.9,-10],
+             [1.3,0.9,-10],
+             [0.5,0.4,-10],
+             [-0.5,0.6,-10],
+             [-1,0.5,-10],
+        ]);
+    } else if(sign === 'Aquarius') {
+        constellation.add(sphere, yellow).translate(2, 3.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1, 2.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0, 2.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.2, 1.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.4, 1.75,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.5, 1.6,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.3, 0.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.6, 1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1, 1.05,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.8, 0.7,-10).scale(0.05,0.05,0.05);
+        paths.push([
+            [2,3.5,-10],
+            [1,2.8,-10],
+             [0,2.2,-10],
+             [-0.2,1.8,-10],
+             [-0.4,1.75,-10],
+             [-0.5,1.6,-10],
+             [0.3,0.5,-10],
+             [0.6,1,-10],
+             [1,1.05,-10],
+             [1.8,0.7,-10],
+        ]);
+        constellation.add(sphere, yellow).translate(0.8, 1.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.6, 2,-10).scale(0.05,0.05,0.05);
+        paths.push([
+            [0,2.2,-10],
+            [0.8,1.8,-10],
+             [1.6,2,-10],
+        ]);
+    } else if(sign === 'Pisces') {
+        constellation.add(sphere, yellow).translate(-0.5, 3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.8, 3.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.6, 3.5,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.7, 2.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.7, 2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-1.2, 1,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(-0.5, 1.2,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(0.5, 1.4,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(1.5, 1.6,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2, 1.6,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2.3, 1.9,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2.5, 1.8,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2.7, 1.6,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2.6, 1.3,-10).scale(0.05,0.05,0.05);
+        constellation.add(sphere, yellow).translate(2.3, 1.2,-10).scale(0.05,0.05,0.05);
+        paths.push([
+            [-0.5,3,-10],
+            [-0.8,3.2,-10],
+             [-0.6,3.5,-10],
+            [-0.5,3,-10],
+            [-0.7,2.3,-10],
+            [-0.7,2,-10],
+            [-1.2,1,-10],
+            [-0.5,1.2,-10],
+            [0.5,1.4,-10],
+            [1.5,1.6,-10],
+            [2,1.6,-10],
+            [2.3,1.9,-10],
+            [2.5,1.8,-10],
+            [2.7,1.6,-10],
+            [2.6,1.3,-10],
+            [2.3,1.2,-10],
+            [2,1.6,-10],
+        ]);
+    }
+    
+    paths.forEach((path) => {
+        for (let n = 0 ; n <= 700 ; n++) {   // SHOW PATH AS SMALL SPHERES.
+           let p = evalCRSpline(path, n/700);
+           constellation.add(square, white)
+               .translate(p)
+               .scale(.01);
+        }
+    });
+        
+    }
+    
+//    
+//    if(path1.length > 0) {
+//        for (let n = 0 ; n <= 700 ; n++) {   // SHOW PATH AS SMALL SPHERES.
+//           let p = evalCRSpline(path1, n/700);
+//           constellation.add(square, white)
+//               .translate(p)
+//               .scale(.01);
+//        }
+//    }
+
+    
+let additions = [];
+
+let isPressed = false;
+let selectedColor = -1;
+
+canvas1.onPress = (x, y) => {
+   isPressed = true;
+    isSelecting = true;
+}
+
+canvas1.onDrag = (x, y) => {
+   if (selectedObject && selectedObject.editable) {
+       if(chosenObject) {
+        chosenObject.selected = false;
+       }
+       chosenObject = selectedObject;
+       selectedObject.selected = true;
+      let p = selectedObject.position;
+      p = viewMatrix.transform(p);
+      p[0] = x;
+      p[1] = y;
+      p = inverseViewMatrix.transform(p);
+      selectedObject.position = p;
+        rotX = selectedObject.rotX;
+        rotY = selectedObject.rotY;
+        rotZ = selectedObject.rotZ;
+        adjScale = 1;
+      selectedObject.identity().translate(p).scale(selectedObject.size).rotateX(selectedObject.rotX).rotateY(selectedObject.rotY).rotateZ(selectedObject.rotZ);
+      selectedColor = -1;
+   }
+}
+
+canvas1.onRelease = (x, y) => {
+    
+    let colorSelected = false;
+
+//   for (let i = 0 ; i < colorSwatch.length ; i++) {
+//      if (selectedObject == colorSwatch[i]) {
+//         selectedColor = i;
+//        if(chosenObject) {
+//            chosenObject.phong = colorSwatch[selectedColor].phong;
+//            return;
+//        }
+//      }
+//   }
+
+   let p = inverseViewMatrix.transform([x,y,0]);
+console.log(birthdayArr[0]);
+   if (!selectedObject && !chosenObject) {
+       let obj;
+       if(shape === 'cube') {
+           obj = scene.add(cube, steel);
+           obj.phong = phong([r/255,g/255,b/255], [.5,.5,.5], [1,1,1], 10);
+       } else if(shape=== 'sphere') {
+           obj = scene.add(sphere, steel);
+           obj.phong = phong([r/255,g/255,b/255], [.5,.5,.5], [1,1,1], 10);
+       } else if(shape=== 'cone') {
+           obj = scene.add(cone, steel);
+           obj.phong = phong([r/255,g/255,b/255], [.5,.5,.5], [1,1,1], 10);
+       } else if(shape === 'birthstone') {
+           if(birthdayArr[0] === 6) {
+               obj = scene.add(sphere, steel);
+           } else {
+                obj = scene.add(crystal, steel);
+               obj.size = 0.2;
+           }
+           obj.phong = crystalColors[birthdayArr[0]];
+       }
+       
+      obj.position = p;
+      obj.editable = true;
+      obj.identity().translate(p).scale(obj.size);
+      selectedColor = -1;
+   } 
+
+    if(!selectedObject && chosenObject) {
+        chosenObject.size *= adjScale;
+        chosenObject.selected = false;
+        chosenObject = null;
+        rotXSlider.value = 50;
+        rotYSlider.value = 50;
+        rotZSlider.value = 50;
+        scaleSlider.value = 50;
+        rotX = 0;
+        rotY = 0;
+        rotZ = 0;
+        adjScale = 1;
+    } 
+    if(selectedObject && selectedObject.editable && selectedObject !== chosenObject) {
+        if(chosenObject) {
+            chosenObject.selected = false;
+        }
+        chosenObject = selectedObject;
+        
+            rotX = chosenObject.rotX;
+            rotY = chosenObject.rotY;
+            rotZ = chosenObject.rotZ;
+            adjScale = 1;
+        selectedColor = -1;
+    }  
+
+   selectedObject = null;
+   isSelecting = false;
+}
+
+canvas1.onMove = (x, y) => {
+   isPressed = false;
+   
+   px = x;
+   py = y;
+}
+
+// START EVERYTHING.
+
+gl_start(canvas1, vs, fs);
+
+</script>
+
